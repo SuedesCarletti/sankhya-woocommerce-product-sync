@@ -1,0 +1,39 @@
+# requirements.txt - PRODUÇÃO RAILWAY
+# Core Flask
+Flask==3.0.0
+Flask-CORS==4.0.0
+
+# HTTP Requests  
+requests==2.31.0
+urllib3==2.1.0
+
+# WSGI Server
+gunicorn==21.2.0
+
+# Environment
+python-dotenv==1.0.0
+
+# Security
+Werkzeug==3.0.1
+
+# Date/Time
+python-dateutil==2.8.2
+
+# JSON/Data
+jsonschema==4.20.0
+
+# Logging (estruturado)
+structlog==23.2.0
+
+# Async (para filas)
+asyncio==3.4.3
+
+# Memory optimization
+psutil==5.9.6
+
+# Error tracking (opcional - se usar Sentry)
+# sentry-sdk[flask]==1.38.0
+
+BrazilFiscalReport==0.4.1
+Pillow==10.1.0
+reportlab==4.0.7
