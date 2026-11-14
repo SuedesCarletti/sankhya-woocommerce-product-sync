@@ -1,111 +1,74 @@
 # app/routes/nfe_proxy.py
 """
-Proxy para redirecionar requisições NFe para o projeto integracaosite
-Adicione este arquivo em app/routes/ do sankhya-woocommerce-sync
+Proxy de NF-e: encaminha consultas de DANFE para o serviço integracaosite.
+
+Segurança:
+- exige o mesmo token da API (require_auth) em tudo que for proxy;
+- só GET; nenhum header do cliente é repassado (nada de Authorization/Cookie do
+  chamador chegando ao serviço interno);
+- o token do serviço interno vem do ambiente, nunca da requisição.
 """
 
 import logging
+import os
+
 import requests
-from flask import Blueprint, request, Response, redirect
-from app.config.settings import load_config
+from flask import Blueprint, Response
+
+from app.utils.decorators import require_auth
 
 logger = logging.getLogger(__name__)
 
 nfe_bp = Blueprint('nfe', __name__)
 
-# URL do projeto integracaosite - AJUSTE CONFORME SEU DEPLOYMENT
-INTEGRACAOSITE_URL = "https://app-producao.example.com"  # AJUSTE AQUI!
+INTEGRACAOSITE_URL = os.getenv("INTEGRACAOSITE_URL", "").rstrip("/")
+INTEGRACAOSITE_TOKEN = os.getenv("INTEGRACAOSITE_TOKEN", "")
+
+
+def _upstream_headers():
+    """Headers enviados ao serviço interno: só o token dele."""
+    return {"X-API-Token": INTEGRACAOSITE_TOKEN} if INTEGRACAOSITE_TOKEN else {}
+
+
+def _configurado():
+    return bool(INTEGRACAOSITE_URL)
+
 
 @nfe_bp.route('/view/<int:order_id>', methods=['GET'])
+@require_auth
 def proxy_view_nfe(order_id):
-    """
-    Redireciona para integracaosite para visualização da NFe
-    """
-    logger.info(f"Redirecionando visualização NFe #{order_id} para integracaosite")
-    
-    # Opção 1: Redirecionamento simples (navegador muda URL)
-    target_url = f"{INTEGRACAOSITE_URL}/nfe/view/{order_id}"
-    return redirect(target_url, code=302)
-    
-    # Opção 2: Proxy transparente (mantém URL original) - descomente se preferir
-    """
+    """Busca o DANFE no integracaosite e devolve o PDF (sem expor a URL interna)."""
+    if not _configurado():
+        return {"error": "Proxy de NF-e não configurado"}, 503
     try:
-        target_url = f"{INTEGRACAOSITE_URL}/nfe/view/{order_id}"
-        
-        # Fazer requisição para integracaosite
-        response = requests.get(
-            target_url,
-            headers={k: v for k, v in request.headers if k != 'Host'},
-            params=request.args,
-            timeout=30
+        resp = requests.get(
+            f"{INTEGRACAOSITE_URL}/nfe/pdf/view/{order_id}",
+            headers=_upstream_headers(),
+            timeout=30,
         )
-        
-        # Retornar resposta do integracaosite
         return Response(
-            response.content,
-            status=response.status_code,
-            headers=dict(response.headers)
+            resp.content,
+            status=resp.status_code,
+            content_type=resp.headers.get('Content-Type', 'application/pdf'),
         )
-        
-    except Exception as e:
-        logger.error(f"Erro no proxy para integracaosite: {e}")
-        return {"error": "Erro ao acessar sistema de NFe"}, 503
-    """
+    except requests.RequestException as e:
+        logger.error(f"Erro no proxy de NF-e: {e}")
+        return {"error": "Erro ao acessar sistema de NF-e"}, 503
+
 
 @nfe_bp.route('/check/<int:order_id>', methods=['GET'])
+@require_auth
 def proxy_check_nfe(order_id):
-    """
-    Proxy para verificar NFe no integracaosite
-    """
-    logger.info(f"Proxy check NFe #{order_id}")
-    
+    """Verifica se existe NF-e para o pedido."""
+    if not _configurado():
+        return {"error": "Proxy de NF-e não configurado"}, 503
     try:
-        target_url = f"{INTEGRACAOSITE_URL}/nfe/check/{order_id}"
-        
-        response = requests.get(
-            target_url,
-            params=request.args,
-            timeout=10
+        resp = requests.get(
+            f"{INTEGRACAOSITE_URL}/nfe/check/{order_id}",
+            headers=_upstream_headers(),
+            timeout=10,
         )
-        
-        return Response(
-            response.content,
-            status=response.status_code,
-            content_type='application/json'
-        )
-        
-    except Exception as e:
-        logger.error(f"Erro no proxy: {e}")
-        return {"error": str(e)}, 503
-
-# Se quiser fazer proxy para TODAS as rotas /nfe/*
-@nfe_bp.route('/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
-def proxy_all(path):
-    """
-    Proxy genérico para todas as rotas NFe
-    """
-    target_url = f"{INTEGRACAOSITE_URL}/nfe/{path}"
-    
-    logger.info(f"Proxy {request.method} /nfe/{path} → {target_url}")
-    
-    try:
-        # Fazer requisição para integracaosite
-        response = requests.request(
-            method=request.method,
-            url=target_url,
-            headers={k: v for k, v in request.headers if k != 'Host'},
-            params=request.args,
-            data=request.get_data(),
-            timeout=30
-        )
-        
-        # Retornar resposta
-        return Response(
-            response.content,
-            status=response.status_code,
-            headers=dict(response.headers)
-        )
-        
-    except Exception as e:
-        logger.error(f"Erro no proxy: {e}")
-        return {"error": "Erro ao acessar sistema de NFe"}, 503
+        return Response(resp.content, status=resp.status_code, content_type='application/json')
+    except requests.RequestException as e:
+        logger.error(f"Erro no proxy de NF-e: {e}")
+        return {"error": "Erro ao acessar sistema de NF-e"}, 503

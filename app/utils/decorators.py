@@ -3,6 +3,7 @@
 Decoradores para autenticação, validação, etc.
 """
 
+import hmac
 import logging
 from functools import wraps
 from flask import request, jsonify
@@ -31,9 +32,8 @@ def require_auth(f):
         
         expected_token = config.get('API_TOKEN')
         
-        if not expected_token or token != expected_token:
-            # Adicionado log de aviso para debug
-            logger.warning(f"Token inválido. Fornecido: {token[:8]}...")
+        if not expected_token or not hmac.compare_digest(str(token), str(expected_token)):
+            logger.warning("Token inválido.")
             return jsonify({'error': 'Token inválido'}), 401
         
         return f(*args, **kwargs)
@@ -63,7 +63,7 @@ def validate_webhook_token(f):
         token = auth_header.replace('Bearer ', '')
         expected_token = config.get('WEBHOOK_SECRET')
         
-        if not expected_token or token != expected_token:
+        if not expected_token or not hmac.compare_digest(str(token), str(expected_token)):
             return jsonify({'error': 'Token webhook inválido'}), 401
         
         return f(*args, **kwargs)

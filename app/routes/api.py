@@ -52,7 +52,10 @@ def obter_danfe_publico_seguro(id_woocommerce):
         
         # 2. Validar hash
         config = load_config()
-        secret = config.get('WEBHOOK_SECRET', 'default_secret')
+        secret = config.get('WEBHOOK_SECRET')
+        if not secret:
+            logger.error('WEBHOOK_SECRET não configurado: endpoint público de DANFE desativado')
+            return jsonify({'status': 'erro', 'error': 'Serviço indisponível'}), 503
         
         if not validar_hash_danfe(id_woocommerce, hash_recebido, secret):
             logger.warning(f"Hash inválido para pedido {id_woocommerce}")
@@ -435,7 +438,7 @@ def reprocessar_notas_retroativo():
                     id_woocommerce = int(ad_id_atual)
                     fonte_id = 'AD_IDWOOCOMMERCE (Sankhya)'
                     logger.info(
-                        f"✅ id_woocommerce={id_woocommerce} obtido do "
+                        f"id_woocommerce={id_woocommerce} obtido do "
                         f"AD_IDWOOCOMMERCE do Sankhya para NUNOTA {nunota}"
                     )
                 else:
@@ -461,7 +464,7 @@ def reprocessar_notas_retroativo():
                                 }
                             )
                             logger.info(
-                                f"✅ AD_IDWOOCOMMERCE={id_woocommerce} "
+                                f"AD_IDWOOCOMMERCE={id_woocommerce} "
                                 f"gravado no Sankhya para NUNOTA {nunota}"
                             )
                         except Exception as e_repair:

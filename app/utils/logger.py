@@ -243,7 +243,7 @@ def log_api_call(service: str, method: str, success: bool, duration_ms: int = No
         **kwargs
     }
     
-    status = "✅" if success else "❌"
+    status = "" if success else "❌"
     message = f"{status} API Call: {service}.{method}"
     
     level = 'info' if success else 'error'

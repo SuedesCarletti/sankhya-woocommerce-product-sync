@@ -3,6 +3,7 @@
 Rotas para receber webhooks do Sankhya ERP - VERSÃO COMPLETA
 """
 
+import hmac
 import logging
 from flask import Blueprint, request, jsonify
 from datetime import datetime
@@ -170,7 +171,7 @@ def webhook_venda_realizada():
             'timestamp': datetime.utcnow().isoformat()
         }), 500
 
-# ===== NOVO: WEBHOOK HTTP PARA ORACLE =====
+# === WEBHOOK HTTP PARA ORACLE =====
 @webhooks_bp.route('/sankhya/venda-realizada-http', methods=['POST'])
 @require_json
 def webhook_venda_realizada_http():
@@ -192,8 +193,8 @@ def webhook_venda_realizada_http():
         config = load_config()
         expected_token = config.get('WEBHOOK_SECRET')
         
-        if not expected_token or token != expected_token:
-            logger.warning(f"Token inválido na requisição HTTP: {token[:10]}...")
+        if not expected_token or not hmac.compare_digest(str(token), str(expected_token)):
+            logger.warning("Token inválido na requisição HTTP")
             return jsonify({'error': 'Token inválido'}), 401
         
         # Processar JSON
@@ -292,7 +293,6 @@ def test_http():
         'status': 'HTTP funcionando no webhooks',
         'method': request.method,
         'timestamp': datetime.utcnow().isoformat(),
-        'headers': dict(request.headers),
         'remote_addr': request.remote_addr,
         'content_type': request.content_type
     })
